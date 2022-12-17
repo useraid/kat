@@ -2,4 +2,85 @@
 
 dependency_chk(){
 
+    # Checking KVM Compatibility 
+    if [[ $(grep -E '(vmx|svm)' /proc/cpuinfo) != 0 ]]
+    then
+        echo "lol"
+        exit 1
+    fi
+
+
+    function dist_chk() {
+        if [[ -f /etc/os-release ]]
+        then
+            source /etc/os-release
+            echo $ID
+        else
+            uname
+        fi
+    }
+    case $(dist_chk) in 
+        fedora)
+            # Required Packages
+            sudo dnf install -y qemu-kvm \
+            libvirt \
+            virt-install \
+            bridge-utils \
+            virt-manager \
+            libvirt-devel \
+            virt-top \
+            libguestfs-tools \
+            guestfs-tools
+            
+            # Service Startup
+            sudo systemctl start libvirtd
+            sudo systemctl enable libvirtd
+
+            ;;
+        ubuntu)
+            # Required Packages
+            sudo apt-get install -y qemu-kvm \
+            libvirt-daemon-system \
+            libvirt-clients \
+            bridge-utils \
+            virt-manager
+
+            # Service Startup
+            sudo systemctl enable --now libvirtd
+            ;;
+        debian)
+            # Required Packages
+            sudo apt-get install -y qemu-kvm \
+            libvirt-clients \
+            libvirt-daemon-system \
+            bridge-utils \
+            virtinst \
+            libvirt-daemon \
+            virt-manager
+
+            # Service Startup
+            sudo systemctl enable --now libvirtd
+            ;;
+    esac    
+
 }
+
+mk_windows10(){
+    echo "i make windows 10"
+
+}
+
+mk_windows11(){
+    echo "i make windows 11"
+
+}
+
+mk_macos(){
+    echo "i make macos"
+}
+
+starter(){
+    echo "i run the machines"
+}
+
+dependency_chk
