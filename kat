@@ -1,5 +1,14 @@
 #!/bin/bash
 
+install(){
+    echo "i will install this"
+}
+
+# ISO locations
+win10_iso=~/isos/win10.iso
+win11_iso=~/isos/win11.iso
+macos_iso=~/isos/macos.iso
+
 dependency_chk(){
 
     # Checking KVM Compatibility 
@@ -8,6 +17,34 @@ dependency_chk(){
         echo "lol"
         exit 1
     fi
+
+    # Allocating Appropriate RAM to Machines 
+    sys_ram=$(awk '/MemTotal/ { printf "%.3f \n", $2/1024 }' /proc/meminfo | cut -d "." -f 1)
+    if [[ $sys_ram -lt 4000 ]];then
+        alloc_ram=2048
+    elif [[ $sys_ram -lt 8000 ]] && [[ $sys_ram -gt 4000 ]];then
+        alloc_ram=4096
+    elif [[ $sys_ram -lt 12000 ]] && [[ $sys_ram -gt 8000 ]];then
+        alloc_ram=6144
+    elif [[ $sys_ram -lt 16000 ]] && [[ $sys_ram -gt 12000 ]];then
+        alloc_ram=8196
+    else
+        alloc_ram=10240
+    fi
+
+    # VCPU Allocation
+    sys_cpu=$(grep -c processor /proc/cpuinfo)
+    if [[ $sys_cpu -eq 3 ]];then
+            alloc_cpu=2
+    elif [[ $sys_cpu -gt 4 ]] && [[ $sys_cpu -lt 9 ]];then
+            alloc_cpu=4
+    elif [[ $sys_cpu -gt 8 ]] && [[ $sys_cpu -lt 16 ]];then
+            alloc_cpu=6
+    else
+            alloc_cpu=8
+    fi
+    
+    mkdir -p ~/VMs
 
 
     function dist_chk() {
@@ -43,7 +80,8 @@ dependency_chk(){
             libvirt-daemon-system \
             libvirt-clients \
             bridge-utils \
-            virt-manager
+            virt-manager \
+            virtinst
 
             # Service Startup
             sudo systemctl enable --now libvirtd
@@ -65,22 +103,114 @@ dependency_chk(){
 
 }
 
+os_fetch(){
+    echo "i will fetch os"
+}
+
+first_run(){
+    echo "kat is a Multi-OS accelerated KVM desktops initializer and manager"
+    echo "Which OS to you want to create a KVM for? [win10/win11/macos]"
+    read init_os
+}
+
 mk_windows10(){
-    echo "i make windows 10"
+    qemu-img create -f qcow2 ~/VMs/win10.qcow2 50G
+    virt-install --name win10 \
+    --connect qemu:///system \
+    --virt-type kvm \
+    --disk path ~/VMs/win10.qcow2 \
+    --graphics spice \
+    --network network=default \
+    --vcpu $alloc_cpu \
+    --ram $alloc_ram \
+    --cdrom $win10_iso
 
 }
 
 mk_windows11(){
-    echo "i make windows 11"
+    qemu-img create -f qcow2 ~/VMs/win11.qcow2 50G
+    virt-install --name win11 \
+    --connect qemu:///system \
+    --virt-type kvm \
+    --disk path ~/VMs/win11.qcow2 \
+    --graphics spice \
+    --network network=default \
+    --vcpu $alloc_cpu \
+    --ram $alloc_ram \
+    --cdrom $win11_iso
 
 }
 
 mk_macos(){
-    echo "i make macos"
+    qemu-img create -f qcow2 ~/VMs/macos.qcow2 64G
 }
 
-starter(){
-    echo "i run the machines"
+win10_starter(){
+    echo "i run the win10 machines"
 }
 
-dependency_chk
+win11_starter(){
+    echo "i run the win11 machines"
+}
+
+macos_starter(){
+    echo "i run the macos machines"
+}
+
+win10_stopper(){
+    echo "i stop win10 machines"
+}
+
+win11_stopper(){
+    echo "i stop win11 machines"
+}
+
+macos_stopper(){
+    echo "i stop macos machines"
+}
+
+while test $# -gt 0; do
+  case "$1" in
+    -h|--help)
+      echo -e "kat is a Multi-OS accelerated KVM desktops initializer and manager.\nDeploy using \nWindows 10 - kat start win10\nWindows 11 - kat start win11\nMacOS - kat start macos"
+      ;;
+    start)
+      shift
+      if test $# -gt 0; then
+        export machine=$1
+        if [[ $machine == "win10" ]];then
+            win10_starter
+        elif [[ $machine == "win11" ]];then
+            win11_starter
+        elif [[ $machine == "macos" ]];then
+            macos_starter
+        fi
+      else
+        echo "enter correct vm"
+        exit 1
+      fi
+      shift
+      ;;
+    stop)
+      shift
+      if test $# -gt 0; then
+        export OUTPUT=$1
+      else
+        echo "no output dir specified"
+        exit 1
+      fi
+      shift
+      ;;
+    --output-dir*)
+      export OUTPUT=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    *)
+        echo "Enter valid syntax"
+        break
+      ;;
+  esac
+done
+
+
+#dependency_chk
