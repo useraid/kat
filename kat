@@ -1,7 +1,14 @@
 #!/bin/bash
 
 install(){
-    echo "i will install this"
+    if ! command -v kat &> /dev/null
+    then
+        sudo cp kat /usr/local/bin
+    fi
+
+    if [[ $1 == "--remove" ]];then
+        sudo rm /usr/local/bin/kat
+        exit 0
 }
 
 # ISO locations
@@ -199,10 +206,6 @@ while test $# -gt 0; do
         echo "no output dir specified"
         exit 1
       fi
-      shift
-      ;;
-    --output-dir*)
-      export OUTPUT=`echo $1 | sed -e 's/^[^=]*=//g'`
       shift
       ;;
     *)
