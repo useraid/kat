@@ -3,20 +3,21 @@
 # Init OSK Key
 OSK="ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc"
 
-install(){
-    if ! command -v kat &> /dev/null
-    then
-        sudo cp kat /usr/local/bin
-    fi
+# install(){    ############ Implement Later ############
+#     if ! command -v kat &> /dev/null
+#     then
+#         sudo cp kat /usr/local/bin
+#     fi
 
-    if [[ $1 == "--remove" ]];then
-        sudo rm /usr/local/bin/kat
-        exit 0
-}
+#     if [[ $1 == "--remove" ]];then
+#         sudo rm /usr/local/bin/kat
+#         exit 0
+# }
 
-# ISO locations
-win10_iso=~/isos/win10.iso
-macos_iso=~/isos/macos.iso
+# Locations
+win10_iso=images/win10.iso
+macos_iso=images/BaseSystem.dmg
+VMFolder=~/VMs
 
 dependency_chk(){
 
@@ -53,7 +54,7 @@ dependency_chk(){
             alloc_cpu=8
     fi
     
-    mkdir -p ~/VMs
+    mkdir -p $VMFolder
 
 
     function dist_chk() {
@@ -76,7 +77,8 @@ dependency_chk(){
             libvirt-devel \
             virt-top \
             libguestfs-tools \
-            guestfs-tools
+            guestfs-tools \
+            dmg2img
             
             # Service Startup
             sudo systemctl start libvirtd
@@ -90,7 +92,8 @@ dependency_chk(){
             libvirt-clients \
             bridge-utils \
             virt-manager \
-            virtinst
+            virtinst \
+            dmg2img
 
             # Service Startup
             sudo systemctl enable --now libvirtd
@@ -103,7 +106,8 @@ dependency_chk(){
             bridge-utils \
             virtinst \
             libvirt-daemon \
-            virt-manager
+            virt-manager \
+            dmg2img
 
             # Service Startup
             sudo systemctl enable --now libvirtd
@@ -112,8 +116,22 @@ dependency_chk(){
 
 }
 
-os_fetch(){
-    echo "i will fetch os"
+macFetch(){
+    # Downloading MacOS DMG and converting to IMG
+    if [ ! -f images/BaseSystem.img ]; then
+        if python3 fetchMacOS.py -o images/ "$@"; then
+            dmg2img images/BaseSystem.dmg images/BaseSystem.img
+            rm images/BaseSystem.dmg
+        else
+            echo "Failed to download base system"
+            exit 1
+        fi
+    fi	
+
+}
+
+windowsFetch(){
+    echo "i will fetch windows"
 }
 
 first_run(){
@@ -124,12 +142,14 @@ first_run(){
 
 mk_windows10(){
     # Create QCOW2 Base Drive
-    qemu-img create -f qcow2 ~/VMs/win10.qcow2 50G
+    if [ ! -f $VMFolder/macos.qcow2 ]; then
+        qemu-img create -f qcow2 $VMFolder/win10.qcow2 50G
+    fi
     # Create KVM 
     virt-install --name win10 \
     --connect qemu:///system \
     --virt-type kvm \
-    --disk path ~/VMs/win10.qcow2 \
+    --disk path $VMFolder/win10.qcow2 \
     --graphics spice \
     --network network=default \
     --vcpu $alloc_cpu \
@@ -141,7 +161,9 @@ mk_windows10(){
 mk_macos(){
     coreCount=$(echo "$alloc_cpu / 2" | bc)
     # Create QCOW2 Base Drive
-    qemu-img create -f qcow2 ~/VMs/macos.qcow2 64G
+    if [ ! -f $VMFolder/macos.qcow2 ]; then
+        qemu-img create -f qcow2 $VMFolder/macos.qcow2 64G
+    fi    
     # Create KVM
     qemu-system-x86_64 \
         -enable-kvm \
@@ -165,16 +187,53 @@ mk_macos(){
         -netdev user,id=net0 \
         -device vmxnet3,netdev=net0,id=net0 \
         -drive id=ESP,if=virtio,format=qcow2,file=/ESP.qcow2 \
+        -drive id=InstallMedia,format=raw,if=virtio,file=$macos_iso \
         -drive id=SystemDisk,if=virtio,file=/macos.qcow2 \
 
 }
 
 win10_starter(){
-    echo "i run the win10 machines"
+
+    qcowfilesize=$(stat -c %s $VMFolder/macos.qcow2)
+    if [ $qcowfilesize -gt 524384 ]; then
+        virsh start win10
+    else
+        mk_windows10
+    fi
+
 }
 
 macos_starter(){
-    echo "i run the macos machines"
+
+    qcowfilesize=$(stat -c %s $VMFolder/macos.qcow2)
+    if [ $qcowfilesize -gt 524384 ]; then
+        qemu-system-x86_64 \
+            -enable-kvm \
+            -m $alloc_ram \
+            -machine q35,accel=kvm \
+            -smp $alloc_cpu,cores=$coreCount \
+            -cpu Penryn,vendor=GenuineIntel,kvm=on,+sse3,+sse4.2,+aes,+xsave,+avx,+xsaveopt,+xsavec,+xgetbv1,+avx2,+bmi2,+smep,+bmi1,+fma,+movbe,+invtsc \
+            -device isa-applesmc,osk="$OSK" \
+            -smbios type=2 \
+            -object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0 \
+            -serial mon:stdio \
+            -drive if=pflash,format=raw,readonly,file=/firmware/OVMF_CODE.fd \
+            -drive if=pflash,format=raw,file=/firmware/OVMF_VARS-1024x768.fd \
+            -device virtio-vga,virgl=on \
+            -display sdl,gl=on \
+            -L /usr/share/seabios/ \
+            -L /usr/lib/ipxe/qemu/ \
+            -audiodev pa,id=pa,server="/run/user/$(id -u)/pulse/native" \
+            -device ich9-intel-hda -device hda-output,audiodev=pa \
+            -usb -device usb-kbd -device usb-mouse \
+            -netdev user,id=net0 \
+            -device vmxnet3,netdev=net0,id=net0 \
+            -drive id=ESP,if=virtio,format=qcow2,file=/ESP.qcow2 \
+            -drive id=SystemDisk,if=virtio,file=/macos.qcow2 \
+    else
+        mk_macos
+    fi
+
 }
 
 win10_stopper(){
