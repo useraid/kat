@@ -130,10 +130,6 @@ macFetch(){
 
 }
 
-windowsFetch(){
-    echo "i will fetch windows"
-}
-
 first_run(){
     echo "kat is a Multi-OS accelerated KVM desktops initializer and manager"
     echo "Which OS to you want to create a KVM for? [win10/macos]"
@@ -237,7 +233,7 @@ macos_starter(){
 }
 
 win10_stopper(){
-    echo "i stop win10 machines"
+    virsh stop win10
 }
 
 macos_stopper(){
