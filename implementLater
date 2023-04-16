@@ -1,0 +1,14 @@
+# Install Function
+install(){
+    if ! command -v kat &> /dev/null
+    then
+        sudo cp kat /usr/local/bin
+    fi
+
+    if [[ $1 == "--remove" ]];then
+        sudo rm /usr/local/bin/kat
+        exit 0
+}
+
+# Windows ISO Fetcher
+# Linux KVM initializer

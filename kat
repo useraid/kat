@@ -3,17 +3,6 @@
 # Init OSK Key
 OSK="ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc"
 
-# install(){    ############ Implement Later ############
-#     if ! command -v kat &> /dev/null
-#     then
-#         sudo cp kat /usr/local/bin
-#     fi
-
-#     if [[ $1 == "--remove" ]];then
-#         sudo rm /usr/local/bin/kat
-#         exit 0
-# }
-
 # Locations
 win10_iso=images/win10.iso
 macos_iso=images/BaseSystem.dmg
@@ -78,7 +67,9 @@ dependency_chk(){
             virt-top \
             libguestfs-tools \
             guestfs-tools \
-            dmg2img
+            dmg2img \
+            python3-requests \
+            python3-click 
             
             # Service Startup
             sudo systemctl start libvirtd
@@ -93,7 +84,9 @@ dependency_chk(){
             bridge-utils \
             virt-manager \
             virtinst \
-            dmg2img
+            dmg2img \
+            python3-requests \
+            python3-click 
 
             # Service Startup
             sudo systemctl enable --now libvirtd
@@ -107,13 +100,16 @@ dependency_chk(){
             virtinst \
             libvirt-daemon \
             virt-manager \
-            dmg2img
+            dmg2img \
+            python3-requests \
+            python3-click 
 
             # Service Startup
             sudo systemctl enable --now libvirtd
             ;;
     esac    
 
+    sudo usermod -G libvirt $(whoami)
 }
 
 macFetch(){
@@ -233,11 +229,11 @@ macos_starter(){
 }
 
 win10_stopper(){
-    virsh stop win10
+    virsh shutdown win10
 }
 
 macos_stopper(){
-    echo "i stop macos machines"
+    virsh shutdown macos
 }
 
 while test $# -gt 0; do
@@ -263,7 +259,12 @@ while test $# -gt 0; do
     stop)
       shift
       if test $# -gt 0; then
-        export OUTPUT=$1
+        export machine=$1
+        if [[ $machine == "win10" ]];then
+            win10_stopper
+        elif [[ $machine == "macos" ]];then
+            macos_stopper
+        fi
       else
         echo "no output dir specified"
         exit 1
