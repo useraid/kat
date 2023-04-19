@@ -1,12 +1,13 @@
 #!/bin/bash
 
-# Init OSK Key
+# Init MacOS OSK Key
 OSK="ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc"
 
 # Locations
-win10_iso=images/win10.iso
-macos_iso=images/BaseSystem.dmg
+imageFolder=~/images
 VMFolder=~/VMs
+win10_iso=$imageFolder/win10.iso
+macos_iso=$imageFolder/BaseSystem.img
 
 dependency_chk(){
 
@@ -44,6 +45,7 @@ dependency_chk(){
     fi
     
     mkdir -p $VMFolder
+    mkdir -p $imageFolder
 
 
     function dist_chk() {
@@ -114,22 +116,16 @@ dependency_chk(){
 
 macFetch(){
     # Downloading MacOS DMG and converting to IMG
-    if [ ! -f images/BaseSystem.img ]; then
-        if python3 fetchMacOS.py -o images/ "$@"; then
-            dmg2img images/BaseSystem.dmg images/BaseSystem.img
-            rm images/BaseSystem.dmg
+    if [ ! -f $imageFolder/BaseSystem.img ]; then
+        if python3 fetchMacOS.py -o $imageFolder/ "$@"; then
+            dmg2img $imageFolder/BaseSystem.dmg $imageFolder/BaseSystem.img
+            rm $imageFolder/BaseSystem.dmg
         else
             echo "Failed to download base system"
             exit 1
         fi
     fi	
 
-}
-
-first_run(){
-    echo "kat is a Multi-OS accelerated KVM desktops initializer and manager"
-    echo "Which OS to you want to create a KVM for? [win10/macos]"
-    read init_os
 }
 
 mk_windows10(){
@@ -152,6 +148,8 @@ mk_windows10(){
 
 mk_macos(){
     coreCount=$(echo "$alloc_cpu / 2" | bc)
+    # Fetching MacOS Image
+    fetchMacOS
     # Create QCOW2 Base Drive
     if [ ! -f $VMFolder/macos.qcow2 ]; then
         qemu-img create -f qcow2 $VMFolder/macos.qcow2 64G
@@ -221,7 +219,7 @@ macos_starter(){
             -netdev user,id=net0 \
             -device vmxnet3,netdev=net0,id=net0 \
             -drive id=ESP,if=virtio,format=qcow2,file=/ESP.qcow2 \
-            -drive id=SystemDisk,if=virtio,file=/macos.qcow2 \
+            -drive id=SystemDisk,if=virtio,file=/macos.qcow2
     else
         mk_macos
     fi
@@ -235,6 +233,34 @@ win10_stopper(){
 macos_stopper(){
     virsh shutdown macos
 }
+
+first_run(){
+
+    if ! command -v kat &> /dev/null
+    then
+        if [[ $(pwd) != "/usr/local/bin" ]];then
+            echo "Installing Dependencies"
+            dependency_chk
+            echo "Installing kat"
+            sudo cp kat /usr/local/bin
+            sudo cp firmware/ /usr/local/bin
+            sudo cp fetchMacOS.py /usr/local/bin
+            sudo cp ESP.qcow2 /usr/local/bin
+            echo -e "kat has been installed successfully.\nRerun using global kat command\nExample : kat start win10\nInstead of ./kat start win10"
+        fi
+    if [[ $1 == "--remove" ]];then
+        sudo rm /usr/local/bin/kat
+        sudo rm /usr/local/bin/fetchMacOS.py
+        sudo rm /usr/local/bin/ESP.qcow2
+        sudo rm -rf /usr/local/bin/firmware
+        echo "kat has been removed successfully"
+        exit 0
+
+}
+
+# Main Calling Init
+
+first_run
 
 while test $# -gt 0; do
   case "$1" in
@@ -277,6 +303,3 @@ while test $# -gt 0; do
       ;;
   esac
 done
-
-
-#dependency_chk

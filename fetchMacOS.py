@@ -112,9 +112,9 @@ class MacOSProduct:
                 Filesystem.download_file(item.get("URL"), item.get("Size"), path)
 
 @click.command()
-@click.option('-o', '--output-dir', default="images/", help="Target directory for package output.")
+@click.option('-o', '--output-dir', default="~/images/", help="Target directory for package output.")
 
-def fetchmacos(output_dir="images/", catalog_version="10.15", catalog_id="PublicRelease", product_id=""):
+def fetchmacos(output_dir="~/images/", catalog_version="10.15", catalog_id="PublicRelease", product_id=""):
     remote = SoftwareService(catalog_version, catalog_id)
     catalog = remote.getcatalog()
 
